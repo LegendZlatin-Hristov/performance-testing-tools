@@ -1,0 +1,5 @@
+GET http://localhost:8080/status/201
+GET https://localhost:8080/html
+POST https://localhost:8080/items
+Content-Type: application/post
+{"foo":"bar"}

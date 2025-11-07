@@ -1,0 +1,17 @@
+apiVersion: 1
+deleteDatasources:
+  - name: InfluxDB (Gatling)
+    orgId: 1
+
+datasources:
+  - name: InfluxDB (Gatling)
+    type: influxdb
+    access: proxy
+    orgId: 1
+    url: http://influxdb:8086
+    database: gatling
+    user:
+    password:
+    isDefault: true
+    jsonData:
+      httpMode: POST

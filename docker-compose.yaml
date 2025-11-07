@@ -1,0 +1,94 @@
+services:
+# Sample HTTP service
+  httpbin:
+    image: grafana/k6-httpbin
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # The web interface and controller for the test
+  locust-master:
+    image: locustio/locust:latest
+    ports:
+      - "8089:8089" # Web UI port
+    volumes:
+      - ./locust:/home/locust # Mount your test scripts
+    command: -f /home/locust/locustfile.py --master -H http://host.docker.internal:8080
+
+  # Load generator instances
+  locust-worker-1:
+    image: locustio/locust:latest
+    volumes:
+      - ./locust:/home/locust
+    command: -f /home/locust/locustfile.py --worker --master-host locust-master -H http://host.docker.internal:8080
+
+  locust-worker-2:
+    image: locustio/locust:latest
+    volumes:
+      - ./locust:/home/locust
+    command: -f /home/locust/locustfile.py --worker --master-host locust-master -H http://host.docker.internal:8080
+
+  k6:
+    image: grafana/k6:latest
+    working_dir: /locust
+    volumes:
+      - ./k6:/tests
+    command: [ "run", "--out", "influxdb=http://influxdb:8086/k6db", "/tests/test.js" ]
+
+  gatling:
+    image: denvazh/gatling:latest
+    container_name: perf_gatling
+    depends_on:
+      - httpbin
+    working_dir: /opt/gatling
+    volumes:
+      - ./gatling/user-files:/opt/gatling/user-files
+      - ./gatling/results:/opt/gatling/results
+
+  influxdb:
+    image: influxdb:1.8
+    environment:
+      INFLUXDB_DB: gatling
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+
+  influx-setup:
+    image: influxdb:1.8
+    depends_on:
+      - influxdb
+    entrypoint: [ "/bin/sh","-c" ]
+    command: >
+      "until wget -qO- http://influxdb:8086/ping; do echo 'waiting influx...'; sleep 1; done;
+       influx -host influxdb -port 8086 -execute 'CREATE DATABASE gatling';
+       echo 'influxdb ready';"
+    restart: "no"
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - influxdb
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
+  siege:
+    image: jstarcher/siege:latest
+    depends_on:
+      - httpbin
+    working_dir: /work
+    volumes:
+      - ./siege:/work:ro
+    entrypoint: [ "/bin/sh","-lc" ]
+    command: >
+      "echo 'Starting siege...' &&
+       siege -c 50 -r 3 -f /work/urls.txt"
+
+volumes:
+  influxdb-data:
