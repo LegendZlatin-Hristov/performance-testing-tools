@@ -1,5 +1,0 @@
-GET http://httpbin:8080/get
-GET http://httpbin:8080/get?page=1
-GET http://httpbin:8080/get?page=2&limit=50
-GET http://httpbin:8080/get?q=test
-GET http://httpbin:8080/get?q=%F0%9F%92%A9

@@ -1,94 +1,69 @@
 services:
-# Sample HTTP service
   httpbin:
+    restart: always
     image: grafana/k6-httpbin
     ports:
       - "8080:8080"
-    restart: unless-stopped
 
-  # The web interface and controller for the test
-  locust-master:
+  # Tools for monitoring
+  siege:
+    image: jstarcher/siege:latest
+    working_dir: /siege
+    depends_on:
+      - httpbin
+    volumes:
+      - ./siege:/siege
+    entrypoint: ["/bin/sh", "-c"]
+    # Run siege with 50 concurrent users, 3 iterations, and the urls.txt file
+    command: >
+      "chmod 777 /siege && siege -c 50 -r 3 -f /siege/urls.txt"
+      
+  vegeta:
+    image: peterevans/vegeta
+    working_dir: /vegeta
+    depends_on:
+      - httpbin
+    volumes:
+      - ./vegeta:/vegeta
+    entrypoint: ["/bin/sh", "-c"]
+    # Run vegeta with request per minute = 80 and the duration of test = 30s
+    command: >
+      "chmod 777 /vegeta &&
+       vegeta attack -targets=tests.txt -rate=80 -duration=30s | tee /vegeta/results.bin &&
+       vegeta plot /vegeta/results.bin > /vegeta/plot.html"
+
+  locust:
     image: locustio/locust:latest
     ports:
       - "8089:8089" # Web UI port
     volumes:
-      - ./locust:/home/locust # Mount your test scripts
-    command: -f /home/locust/locustfile.py --master -H http://host.docker.internal:8080
-
-  # Load generator instances
-  locust-worker-1:
-    image: locustio/locust:latest
-    volumes:
-      - ./locust:/home/locust
-    command: -f /home/locust/locustfile.py --worker --master-host locust-master -H http://host.docker.internal:8080
-
-  locust-worker-2:
-    image: locustio/locust:latest
-    volumes:
-      - ./locust:/home/locust
-    command: -f /home/locust/locustfile.py --worker --master-host locust-master -H http://host.docker.internal:8080
-
-  k6:
-    image: grafana/k6:latest
-    working_dir: /locust
-    volumes:
-      - ./k6:/tests
-    command: [ "run", "--out", "influxdb=http://influxdb:8086/k6db", "/tests/test.js" ]
+      - ./locust:/locust
+    command: -f /locust/locustfile.py -H http://host.docker.internal:8080
 
   gatling:
     image: denvazh/gatling:latest
-    container_name: perf_gatling
     depends_on:
       - httpbin
-    working_dir: /opt/gatling
+    working_dir: /gatling
     volumes:
-      - ./gatling/user-files:/opt/gatling/user-files
-      - ./gatling/results:/opt/gatling/results
+      - ./gatling/user-files:/gatling/user-files
+      - ./gatling/results:/gatling/results
+    command: [ "-s", "HttpBinSimulation", "-rf", "/gatling/results" ]
 
-  influxdb:
-    image: influxdb:1.8
-    environment:
-      INFLUXDB_DB: gatling
-      INFLUXDB_HTTP_AUTH_ENABLED: "false"
-    ports:
-      - "8086:8086"
-    volumes:
-      - influxdb-data:/var/lib/influxdb
-
-  influx-setup:
-    image: influxdb:1.8
-    depends_on:
-      - influxdb
-    entrypoint: [ "/bin/sh","-c" ]
-    command: >
-      "until wget -qO- http://influxdb:8086/ping; do echo 'waiting influx...'; sleep 1; done;
-       influx -host influxdb -port 8086 -execute 'CREATE DATABASE gatling';
-       echo 'influxdb ready';"
-    restart: "no"
-
-  grafana:
-    image: grafana/grafana:latest
-    depends_on:
-      - influxdb
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-
-  siege:
-    image: jstarcher/siege:latest
+  k6:
+    image: grafana/k6
     depends_on:
       - httpbin
-    working_dir: /work
+    working_dir: /k6
     volumes:
-      - ./siege:/work:ro
-    entrypoint: [ "/bin/sh","-lc" ]
-    command: >
-      "echo 'Starting siege...' &&
-       siege -c 50 -r 3 -f /work/urls.txt"
+      - ./k6:/k6
+    command: ["run", "--out", "json=/k6/results.json", "/k6/test.js"]
 
-volumes:
-  influxdb-data:
+  artillery:
+    image: artilleryio/artillery:2.0.21
+    depends_on:
+      - httpbin
+    working_dir: /artillery
+    volumes:
+      - ./artillery:/artillery
+    entrypoint: ["/bin/sh", "/artillery/run.sh"]

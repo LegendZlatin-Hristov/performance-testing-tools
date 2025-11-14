@@ -1,5 +1,6 @@
-GET http://localhost:8080/status/201
-GET https://localhost:8080/html
-POST https://localhost:8080/items
-Content-Type: application/post
-{"foo":"bar"}
+GET http://host.docker.internal:8080/get
+GET http://host.docker.internal:8080/status/200
+GET http://host.docker.internal:8080/status/500
+GET http://host.docker.internal:8080/delay/1
+POST http://host.docker.internal:8080/post
+@/vegeta/post.json

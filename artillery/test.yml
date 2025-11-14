@@ -1,0 +1,25 @@
+config:
+  target: "http://host.docker.internal:8080"
+  phases:
+    - duration: 30
+      arrivalRate: 80
+
+scenarios:
+  - name: "HttpBin flow"
+    flow:
+      - get:
+          url: "/get"
+
+      - get:
+          url: "/status/200"
+
+      - get:
+          url: "/status/500"
+
+      - get:
+          url: "/delay/1"
+
+      - post:
+          url: "/post"
+          json:
+            foo: "bar"

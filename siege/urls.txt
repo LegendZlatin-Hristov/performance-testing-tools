@@ -1,5 +1,5 @@
-http://httpbin:8080/get
-http://httpbin:8080/status/200
-http://httpbin:8080/status/500
-http://httpbin:8080/delay/1
-http://httpbin:8080/post POST {"foo":"bar"}
+http://host.docker.internal:8080/get
+http://host.docker.internal:8080/status/200
+http://host.docker.internal:8080/status/500
+http://host.docker.internal:8080/delay/1
+http://host.docker.internal:8080/post POST {"foo":"bar"}
